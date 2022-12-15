@@ -311,11 +311,37 @@ void measure_cordic_accuracy2()
 		display_row_dec(result.sin_val, true_sin_1);
 	printf("==Cosine==\n");
 	display_row_header();
-	for (auto result : results)
-		display_row_dec(result.cos_val, true_cos_1);
+for (auto result : results)
+	display_row_dec(result.cos_val, true_cos_1);
 }
 
+double ave_seq(const int * A, std::size_t n)
+{
+	double r = 0.0;
+	for (std::size_t i = 0; i < n; ++i)
+		r += A[i];
+	return r / n;
+}
 
+#include <omp.h>
+double ave_par(const int * A, std::size_t n)
+{
+	double r = 0.0;
+	#pragma omp parallel
+	{
+		double lr = 0.0;
+		for (std::size_t i = omp_get_thread_num(); i < n; i+= omp_get_num_threads())
+			lr += A[i];
+#pragma omp critical
+		{
+			r += lr;
+		}
+	}
+	return r / n;
+}
+
+#include <memory>
+extern std::unique_ptr<int[]> data_buffer; 
 int main(int, char**)
 {
 	double x = 1;
@@ -329,5 +355,13 @@ int main(int, char**)
 	printf("cos(x) = 0x%08llX = %.15g\n", from_double(cs.cos_val), cs.cos_val);
 	measure_cordic_accuracy2();
 	measure_cordic_time();
+
+	auto data = data_buffer.get();
+	constexpr std::size_t n = 1ull << 28;
+	double ave_seq_result = ave_seq(data, n);
+	printf("Average: %g\n", ave_seq_result);
+	double ave_par_result = ave_par(data, n);
+	printf("Average: %g\n", ave_par_result);
+
 	return 0;
 }
